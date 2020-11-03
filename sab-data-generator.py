@@ -144,7 +144,7 @@ def run_leapr_kernel(args):
     #    ntempr  number of temperatures (def=1)
     #    iprint  print control (0=min, 1=more, 2=most, def=1)
     #    nphon   phonon-expansion order (def=100)
-    card3 = f'{len(temperatures)} 1 2/'
+    card3 = f'{len(temperatures)} 1 200/'
     # card 4 - endf output control
     #    mat     endf mat number
     #    za      1000*z+a for principal scatterer
