@@ -84,7 +84,7 @@ def parse_file7(mf7_path):
     """Parse ENDF File 7 file and return pandas DataFrame."""
     def to_float(endf_float_string):
         """Convert ENDF-style float string to float."""
-        pattern = re.compile(r'([+-])')
+        pattern = re.compile(r'\d([+-])')
         return float(pattern.sub(r'E\1', endf_float_string))
 
     with open(mf7_path, mode='r') as sab_file:
@@ -105,8 +105,11 @@ def parse_file7(mf7_path):
             N_full_rows, remainder = divmod(N_alpha, 3)
             for row in range(N_full_rows + (remainder != 0)):
                 # Everything after column 66 is ignored
+                line = sab_file.readline()
                 doubles = [
-                        to_float(x) for x in sab_file.readline()[:66].split()]
+                        to_float(line[start:start+11])
+                        for start in range(0, 66, 11)
+                        if not line[start:start+11].isspace()]
                 for alpha, S in zip(doubles[::2], doubles[1::2]):
                     alphas.append(alpha)
                     betas.append(beta)
@@ -121,11 +124,14 @@ def parse_file7(mf7_path):
                 unique_alphas = (a for a in alphas[:N_alpha])
                 for row in range(N_full_rows + (remainder != 0)):
                     line = sab_file.readline()[:66]
-                    for S in line.split():
+                    for S in [
+                            to_float(line[start:start+11])
+                            for start in range(0, 66, 11)
+                            if not line[start:start+11].isspace()]:
                         alphas.append(next(unique_alphas))
                         betas.append(beta)
                         Ts.append(temp)
-                        Ss.append(to_float(S))
+                        Ss.append(S)
         return pd.DataFrame.from_dict(
                 {'alpha': alphas, 'beta': betas, 'T': Ts, 'S': Ss})
 
