@@ -176,7 +176,7 @@ def run_leapr_kernel(args):
     #    nbeta    number of beta values
     #    lat      if lat.eq.1, alpha and beta values are scaled
     #               by .0253/tev, where tev is temp in ev.  (def=0)
-    card7 = '182 259 1/'
+    card7 = f'{len(alphas)} {len(betas)} 1/'
     # card 8 - alpha values (increasing order)
     card8 = ' '.join(str(a) for a in alphas) + '/'
     # card 9 - beta values (increasing order)
