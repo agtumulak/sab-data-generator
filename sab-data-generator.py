@@ -136,9 +136,8 @@ def parse_file7(mf7_path):
                 {'alpha': alphas, 'beta': betas, 'T': Ts, 'S': Ss})
 
 
-def run_leapr_kernel(args):
-    """Runs a single instance of leapr using given PDOS values"""
-    njoy_path, column_name, pdos = args
+def create_leapr_input(card12):
+    """Create a input file, accepting PDOS values as parameters."""
     # declare leapr run
     start = 'leapr'
     # card 1 - units
@@ -187,8 +186,6 @@ def run_leapr_kernel(args):
     #    delta    interval in ev
     #    ni       number of points
     card11 = '0.0005 1001'
-    # card 12 -- rho(energy) (order of increasing ev)
-    card12 = ' '.join(str(rho) for rho in pdos) + '/'
     # card 13 - continuous distribution parameters
     #    twt       translational weight
     #    c         diffusion constant (zero for free gas)
@@ -205,6 +202,17 @@ def run_leapr_kernel(args):
         "'density of states.                                               '/")
     # trailing blank line and stop
     end = '/\nstop'
+    # concatenate cards
+    return '\n'.join([
+        start, card1, card2, card3, card4, card5, card6, card7, card8, card9,
+        card10, card11, card12, card13, card14, card10extra, card20, end])
+
+
+def run_leapr_kernel(args):
+    """Runs a single instance of leapr using given PDOS values"""
+    njoy_path, column_name, pdos = args
+    # card 12 -- rho(energy) (order of increasing ev)
+    card12 = ' '.join(str(rho) for rho in pdos) + '/'
     # Work inside a temporary directory
     with tempfile.TemporaryDirectory() as tmpdir:
         # set up filenames
@@ -212,10 +220,7 @@ def run_leapr_kernel(args):
         output_path = os.path.join(tmpdir, f'output_{column_name}.leapr')
         mf7_path = os.path.join(tmpdir, f'tape{output_unit}')
         with open(input_path, 'w') as input_file:
-            input_file.writelines('\n'.join([
-                start, card1, card2, card3, card4, card5, card6, card7, card8,
-                card9, card10, card11, card12, card13, card14, card10extra,
-                card20, end]))
+            input_file.writelines(create_leapr_input(card12))
         subprocess.Popen(
                 [njoy_path, '-i', input_path, '-o', output_path],
                 cwd=tmpdir, stdout=subprocess.DEVNULL).wait()
@@ -226,6 +231,10 @@ def run_leapr_kernel(args):
 
 def run_leapr(args):
     """Create input files and run leapr"""
+    # Save input file
+    with open('input.leapr', 'w') as representative_input:
+        representative_input.writelines(
+                create_leapr_input('...PDOS entries... /'))
     pdos = load_pdos(args)
     # Prepare iterable for pool.starmap
     starmap_args = (
