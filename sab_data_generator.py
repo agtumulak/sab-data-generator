@@ -54,8 +54,8 @@ def parse_arguments():
 
 def load_pdos(args):
     """Load a probability density of state (PDOF) file."""
-    return pd.read_csv(args.pdos_file, sep='  ', index_col=0, header=None,
-                       engine='python')
+    return pd.read_csv(args.pdos_file, delim_whitespace=True, index_col=0,
+            header=None, engine='python')
 
 
 def plot_pdos(args):
