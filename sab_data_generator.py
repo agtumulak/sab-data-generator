@@ -80,60 +80,59 @@ def plot_pdos(args):
     fig.savefig(args.output_file.buffer, format='pgf')
 
 
-def parse_file7(mf7_path):
+def parse_file7(sab_file):
     """Parse ENDF File 7 file and return pandas DataFrame."""
     def to_float(endf_float_string):
         """Convert ENDF-style float string to float."""
         pattern = re.compile(r'\d([+-])')
         return float(pattern.sub(r'E\1', endf_float_string))
 
-    with open(mf7_path, mode='r') as sab_file:
-        # skip headers
-        while True:
-            if sab_file.readline().endswith('1 7  4    5\n'):
-                N_beta = int(sab_file.readline().split()[0])
-                break
-        alphas, betas, Ts, Ss = [], [], [], []
-        for _ in range(N_beta):
-            # Read first temperature, beta block
-            entries = sab_file.readline().split()
-            temp, beta = (to_float(x) for x in entries[:2])
-            N_temp = int(entries[2]) + 1
-            # The first temperature is handled differently: alpha and
-            # S(alpha, beta) values are given together.
-            N_alpha = int(sab_file.readline().split()[0])
-            N_full_rows, remainder = divmod(N_alpha, 3)
+    # skip headers
+    while True:
+        if sab_file.readline().endswith('1 7  4    5\n'):
+            N_beta = int(sab_file.readline().split()[0])
+            break
+    alphas, betas, Ts, Ss = [], [], [], []
+    for _ in range(N_beta):
+        # Read first temperature, beta block
+        entries = sab_file.readline().split()
+        temp, beta = (to_float(x) for x in entries[:2])
+        N_temp = int(entries[2]) + 1
+        # The first temperature is handled differently: alpha and
+        # S(alpha, beta) values are given together.
+        N_alpha = int(sab_file.readline().split()[0])
+        N_full_rows, remainder = divmod(N_alpha, 3)
+        for row in range(N_full_rows + (remainder != 0)):
+            # Everything after column 66 is ignored
+            line = sab_file.readline()
+            doubles = [
+                    to_float(line[start:start+11])
+                    for start in range(0, 66, 11)
+                    if not line[start:start+11].isspace()]
+            for alpha, S in zip(doubles[::2], doubles[1::2]):
+                alphas.append(alpha)
+                betas.append(beta)
+                Ts.append(temp)
+                Ss.append(S)
+        # The remaining temperatures are handled uniformly
+        N_full_rows, remainder = divmod(N_alpha, 6)
+        for _ in range(N_temp - 1):
+            temp, beta = (
+                    to_float(x) for x in sab_file.readline().split()[:2])
+            # Subsequent betas use the first beta's alpha grid.
+            unique_alphas = (a for a in alphas[:N_alpha])
             for row in range(N_full_rows + (remainder != 0)):
-                # Everything after column 66 is ignored
-                line = sab_file.readline()
-                doubles = [
+                line = sab_file.readline()[:66]
+                for S in [
                         to_float(line[start:start+11])
                         for start in range(0, 66, 11)
-                        if not line[start:start+11].isspace()]
-                for alpha, S in zip(doubles[::2], doubles[1::2]):
-                    alphas.append(alpha)
+                        if not line[start:start+11].isspace()]:
+                    alphas.append(next(unique_alphas))
                     betas.append(beta)
                     Ts.append(temp)
                     Ss.append(S)
-            # The remaining temperatures are handled uniformly
-            N_full_rows, remainder = divmod(N_alpha, 6)
-            for _ in range(N_temp - 1):
-                temp, beta = (
-                        to_float(x) for x in sab_file.readline().split()[:2])
-                # Subsequent betas use the first beta's alpha grid.
-                unique_alphas = (a for a in alphas[:N_alpha])
-                for row in range(N_full_rows + (remainder != 0)):
-                    line = sab_file.readline()[:66]
-                    for S in [
-                            to_float(line[start:start+11])
-                            for start in range(0, 66, 11)
-                            if not line[start:start+11].isspace()]:
-                        alphas.append(next(unique_alphas))
-                        betas.append(beta)
-                        Ts.append(temp)
-                        Ss.append(S)
-        return pd.DataFrame.from_dict(
-                {'alpha': alphas, 'beta': betas, 'T': Ts, 'S': Ss})
+    return pd.DataFrame.from_dict(
+            {'alpha': alphas, 'beta': betas, 'T': Ts, 'S': Ss})
 
 
 def create_leapr_input(card12):
@@ -235,7 +234,7 @@ def run_leapr(args):
     with open('input.leapr', 'w') as representative_input:
         representative_input.writelines(
                 create_leapr_input('...PDOS entries... /'))
-    pdos = load_pdos(args)
+    pdos = load_pdos(args).loc[:,1:2]
     # Prepare iterable for pool.starmap
     starmap_args = (
             (args.njoy_path.name, *colname_pdos_pair)
